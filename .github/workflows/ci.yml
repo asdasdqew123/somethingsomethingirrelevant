@@ -1,4 +1,5 @@
-name: CI
+
+name: CI/CD
 
 on:
   push:
@@ -6,27 +7,35 @@ on:
       - main
 
 jobs:
-  build:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-      - name: Install dependencies
-        run: npm install
+    - name: Install dependencies
+      run: npm install
 
-      - name: Build project
-        run: npm run build
+    - name: Run build
+      run: npm run build
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: dist/
-          if-no-files-found: error
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-result
+        path: .
+
+    - name: decode the SSH key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > ec2-key.pem                                                                                                                                                                 || true
+        chmod 600 ec2-key.pem                                                                                                                                                                                                           || true
+
+    - name: deploy to EC2 
+      run: |
+        rsync -avz -e "ssh -i ec2-key.pem -o StrictHostKeyChecking=no" --exclude='.git' ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/nodeapp                                                        || true
